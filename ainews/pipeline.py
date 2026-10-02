@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime, timedelta, timezone
 
-from . import llm
+from . import llm, search
 from .cluster import cluster
 from .fetchers import FETCHERS
 from .score import is_ai_relevant, score_story
@@ -101,6 +101,10 @@ def run(cfg, items=None, now=None, dry_run=False):
            "window_hours": cfg["window_hours"], "llm_used": llm_used,
            "candidates": len(items), "sources_status": status,
            "items": [story_json(s, now) for s in top]}
+    scfg = cfg.get("search", {})
+    if scfg.get("enabled") and out["items"]:
+        queries = llm.make_queries([(i["title"], i["summary"]) for i in out["items"]])
+        search.enrich(out["items"], queries, scfg)
     if not dry_run:
         out_dir = os.path.join(cfg["data_dir"], "daily")
         os.makedirs(out_dir, exist_ok=True)

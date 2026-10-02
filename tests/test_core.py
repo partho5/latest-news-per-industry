@@ -139,5 +139,110 @@ class Tests(unittest.TestCase):
         self.assertEqual(score.engagement(vids[0]), 1500)  # 500 views / 1000 subs * 3000
 
 
+DDG_HTML = """
+<div class="result results_links results_links_deep web-result"><div class="result__body">
+<h2><a class="result__a" href="//duckduckgo.com/l/?uddg=https%3A%2F%2Fwww.reuters.com%2Ftech%2Fgates-ai&rut=x">Gates warns <b>AI</b> risks</a></h2>
+<a class="result__snippet" href="x">Bill Gates said <b>AI</b> could be misused to cause mass harm.</a></div></div>
+<div class="result result--ad"><div class="result__body"><a class="result__a" href="https://duckduckgo.com/y.js?ad=1">Buy stuff</a>
+<a class="result__snippet">ad</a></div></div>
+<div class="result results_links web-result"><div class="result__body">
+<a class="result__a" href="https://techcrunch.com/gates">Gates on AI risk (no snippet below)</a></div></div>
+<div class="result results_links web-result"><div class="result__body">
+<a class="result__a" href="https://www.youtube.com/watch?v=1">Gates AI warning video</a>
+<a class="result__snippet">Bill Gates AI warning kill billions</a></div></div>
+<div class="result results_links web-result"><div class="result__body">
+<a class="result__a" href="https://example.org/unrelated">Cooking pasta</a><a class="result__snippet">recipes</a></div></div>
+"""
+
+
+class RelatedAndTelegram(unittest.TestCase):
+    def test_parse_ddg_skips_ads_and_keeps_alignment(self):
+        from ainews import search
+        r = search.parse_ddg(DDG_HTML)
+        self.assertEqual([x["url"] for x in r][:2], ["https://www.reuters.com/tech/gates-ai", "https://techcrunch.com/gates"])
+        self.assertEqual(r[0]["title"], "Gates warns AI risks")
+        self.assertIn("mass harm", r[0]["snippet"])
+        self.assertEqual(r[1]["snippet"], "")          # missing snippet must not borrow the next one
+        self.assertFalse(any("y.js" in x["url"] for x in r))
+
+    def test_pick_related_filters_own_site_social_and_irrelevant(self):
+        from ainews import search
+        res = search.parse_ddg(DDG_HTML)
+        got = search.pick_related(res, "Bill Gates AI risk warning", ["https://techcrunch.com/own"], per_item=2)
+        urls = [g["url"] for g in got]
+        self.assertEqual(urls, ["https://www.reuters.com/tech/gates-ai"])  # techcrunch=own, youtube=social, pasta=irrelevant
+
+    def test_enrich_never_raises(self):
+        from ainews import search
+        items = [{"title": "T", "sources": [{"url": "https://a.com/x"}]}, {"title": "U", "sources": []}]
+
+        def boom(q):
+            raise RuntimeError("captcha")
+        search.enrich(items, {}, {"delay_seconds": 0}, search=boom, sleep=lambda s: None)
+        self.assertEqual(items[0]["related"], [])
+        self.assertEqual(items[0]["search_query"], "T news")
+
+    def test_make_queries(self):
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k"}), \
+                mock.patch.object(llm, "_chat", return_value='ok [{"id":0,"query":"gates ai risk warning"}]'):
+            self.assertEqual(llm.make_queries([("t", "s")]), {0: "gates ai risk warning"})
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k"}), \
+                mock.patch.object(llm, "_chat", side_effect=RuntimeError):
+            self.assertEqual(llm.make_queries([("t", "s")]), {})
+
+    def test_pipeline_attaches_related_and_telegram_text(self):
+        from ainews import notify, search
+        cfg = {"window_hours": 36, "max_items": 10, "min_score": 15, "shortlist_size": 30, "dedup_days": 30,
+               "sources": [], "search": {"enabled": True, "per_item": 2, "delay_seconds": 0}}
+        with tempfile.TemporaryDirectory() as d, \
+                mock.patch.object(search, "search_ddg", lambda q: search.parse_ddg(DDG_HTML)), \
+                mock.patch.object(search.time, "sleep", lambda s: None):
+            cfg["data_dir"] = d
+            out = pipeline.run(cfg, items=fixtures(), now=NOW, dry_run=True)
+        gates = next(i for i in out["items"] if "Gates" in i["title"])
+        self.assertTrue(gates["related"])
+        msg = notify.format_item(1, gates)
+        self.assertIn("Related coverage", msg)
+        self.assertLessEqual(len(msg), notify.LIMIT)
+
+    def test_format_escapes_html_and_truncates(self):
+        from ainews import notify
+        it = {"title": "A <b>&</b>", "topic": "other", "score": 50.2, "summary": "x" * 9000,
+              "url": "https://a.com/?a=1&b=2", "related": []}
+        msg = notify.format_item(1, it)
+        self.assertIn("A &lt;b&gt;&amp;&lt;/b&gt;", msg)
+        self.assertLessEqual(len(msg), notify.LIMIT)
+
+    def test_send_digest_uses_stringsession_and_swallows_errors(self):
+        import sys
+        import types
+        from ainews import notify
+        sent = []
+
+        class Client:
+            def __init__(self, session, api_id, api_hash):
+                sent.append(("init", session.__class__.__name__ if not isinstance(session, str) else session, api_id))
+
+            async def __aenter__(self):
+                return self
+
+            async def __aexit__(self, *a):
+                return False
+
+            async def send_message(self, chat, text, parse_mode=None, link_preview=None):
+                sent.append((chat, parse_mode, link_preview))
+        tl = types.ModuleType("telethon"); tl.TelegramClient = Client
+        sess = types.ModuleType("telethon.sessions"); sess.StringSession = lambda s: s
+        env = {"TELEGRAM_API_ID": "123", "TELEGRAM_API_HASH": "h", "TELEGRAM_SESSION": "SESS"}
+        out = {"items": [{"title": "t", "topic": "other", "score": 1, "summary": "", "url": "https://a.com", "related": []}]}
+        with mock.patch.dict(sys.modules, {"telethon": tl, "telethon.sessions": sess}), \
+                mock.patch.dict(os.environ, env, clear=True), mock.patch.object(notify.asyncio, "sleep", mock.AsyncMock()):
+            self.assertTrue(notify.send_digest(out))
+            self.assertEqual(sent, [("init", "SESS", 123), ("me", "html", False)])
+            self.assertFalse(notify.send_digest({"items": []}))           # quiet day -> nothing sent
+            with mock.patch.object(notify, "_send", side_effect=RuntimeError("net")):
+                self.assertFalse(notify.send_digest(out))                 # failure swallowed
+
+
 if __name__ == "__main__":
     unittest.main()

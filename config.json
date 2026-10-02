@@ -5,6 +5,8 @@
   "shortlist_size": 30,
   "dedup_days": 30,
   "data_dir": "data",
+  "search": {"enabled": true, "per_item": 2, "delay_seconds": 3},
+  "telegram": {"enabled": true},
   "sources": [
     {"kind": "rss", "name": "OpenAI", "type": "primary", "url": "https://openai.com/news/rss.xml"},
     {"kind": "rss", "name": "Google DeepMind", "type": "primary", "url": "https://deepmind.google/blog/rss.xml"},

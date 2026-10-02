@@ -3,6 +3,7 @@ import json
 import logging
 import os
 
+from . import notify
 from .pipeline import run
 
 
@@ -29,6 +30,8 @@ def main():
         print(json.dumps(out, indent=2, ensure_ascii=False))
     else:
         logging.info("wrote %d items (llm_used=%s)", len(out["items"]), out["llm_used"])
+        if cfg.get("telegram", {}).get("enabled", True):
+            logging.info("telegram sent=%s", notify.send_digest(out))
 
 
 main()

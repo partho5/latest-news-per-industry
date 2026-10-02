@@ -1,7 +1,9 @@
 [Unit]
 Description=ai-news daily collector
+After=network-online.target
+Wants=network-online.target
 
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/news-collector
-ExecStart=/usr/bin/python3 -m ainews
+ExecStart=/opt/news-collector/.venv/bin/python -m ainews

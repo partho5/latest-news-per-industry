@@ -59,3 +59,25 @@ def review(stories):
     if not verdicts and last_err:
         raise last_err
     return verdicts
+
+
+QUERY_PROMPT = """For each news item write ONE web search query (4-8 words) that would find other reputable
+coverage of the same event: use the key entities and the specific development, no quotes, no operators.
+Return ONLY a JSON array: [{"id": <int>, "query": "<text>"}]
+
+Items:
+"""
+
+
+def make_queries(titles_and_summaries):
+    """-> {index: query}. Returns {} on any failure (callers fall back to '<title> news')."""
+    if not configured():
+        return {}
+    try:
+        lines = [f"[{i}] {t} | {s}" for i, (t, s) in enumerate(titles_and_summaries)]
+        raw = _chat(QUERY_PROMPT + "\n".join(lines))
+        m = re.search(r"\[.*\]", raw, re.S)
+        return {int(v["id"]): str(v["query"]).strip() for v in json.loads(m.group(0) if m else raw)
+                if str(v.get("query", "")).strip()}
+    except Exception:
+        return {}
