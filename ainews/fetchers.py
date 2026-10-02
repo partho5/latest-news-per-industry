@@ -139,17 +139,18 @@ def fetch_youtube(src, cfg):
     cutoff = datetime.now(timezone.utc) - timedelta(hours=cfg["window_hours"])
     vids = {}
     for handle in src["handles"]:
-        ch = get_json(f"{base}/channels?{urlencode({'part': 'snippet,contentDetails', 'forHandle': handle, 'key': key})}")
+        ch = get_json(f"{base}/channels?{urlencode({'part': 'snippet,contentDetails,statistics', 'forHandle': handle, 'key': key})}")
         if not ch.get("items"):
             continue
         name = ch["items"][0]["snippet"]["title"]
+        subs = int(ch["items"][0].get("statistics", {}).get("subscriberCount", 0))
         uploads = ch["items"][0]["contentDetails"]["relatedPlaylists"]["uploads"]
         pl = get_json(f"{base}/playlistItems?{urlencode({'part': 'snippet', 'playlistId': uploads, 'maxResults': 8, 'key': key})}")
         for it in pl.get("items", []):
             sn = it["snippet"]
             pub = parse_date(sn.get("publishedAt"))
             if pub and datetime.fromisoformat(pub.replace("Z", "+00:00")) >= cutoff:
-                vids[sn["resourceId"]["videoId"]] = (name, sn["title"], pub, _strip_html(sn.get("description", ""))[:600])
+                vids[sn["resourceId"]["videoId"]] = (name, sn["title"], pub, _strip_html(sn.get("description", ""))[:600], subs)
     out = []
     ids = list(vids)
     for i in range(0, len(ids), 50):
@@ -157,9 +158,9 @@ def fetch_youtube(src, cfg):
         stats = get_json(f"{base}/videos?{urlencode({'part': 'statistics', 'id': ','.join(batch), 'key': key})}")
         views = {v["id"]: int(v["statistics"].get("viewCount", 0)) for v in stats.get("items", [])}
         for vid in batch:
-            name, title, pub, text = vids[vid]
+            name, title, pub, text, subs = vids[vid]
             out.append(Item(title, f"https://www.youtube.com/watch?v={vid}", f"YouTube: {name}", "video",
-                            pub, text, {"views": views.get(vid, 0)}))
+                            pub, text, {"views": views.get(vid, 0), "subs": subs}))
     return out
 
 

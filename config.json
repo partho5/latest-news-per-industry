@@ -20,6 +20,6 @@
     {"kind": "hn", "name": "Hacker News", "queries": ["AI", "LLM", "OpenAI", "Anthropic", "Claude", "Gemini", "DeepSeek", "Qwen", "Llama"], "min_points": 50},
     {"kind": "github", "name": "GitHub", "queries": ["topic:llm", "topic:ai-agents", "topic:generative-ai"], "min_stars": 300, "created_within_days": 14},
     {"kind": "huggingface", "name": "Hugging Face Hub", "limit": 25, "created_within_days": 10},
-    {"kind": "youtube", "name": "YouTube", "handles": ["@aiexplained-official", "@TwoMinutePapers", "@MatthewBerman", "@WesRoth", "@TheAIGRID"]}
+    {"kind": "youtube", "name": "YouTube", "handles": ["@mreflow", "@matthew_berman", "@AIDailyBrief", "@aiexplained-official", "@WesRoth", "@TheAIGRID"]}
   ]
 }

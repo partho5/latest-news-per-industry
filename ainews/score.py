@@ -32,8 +32,10 @@ def is_ai_relevant(item):
 
 def engagement(item):
     m = item.metrics
+    # Video views are judged relative to the channel's size so big channels don't dominate.
+    video = m.get("views", 0) / m["subs"] * 3000 if m.get("subs") else m.get("views", 0) / 200
     return (m.get("hn_points", 0) + 1.5 * m.get("hn_comments", 0) + 0.5 * m.get("stars", 0)
-            + 2 * m.get("likes", 0) + m.get("views", 0) / 200)
+            + 2 * m.get("likes", 0) + video)
 
 
 def classify_topic(text):

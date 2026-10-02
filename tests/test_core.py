@@ -97,6 +97,25 @@ class Tests(unittest.TestCase):
         self.assertEqual(parse_feed(rss, "x", "news")[0].published_at, "2026-10-02T06:00:00Z")
         self.assertEqual(parse_feed(atom, "x", "news")[0].url, "https://a.com/2")
 
+    def test_youtube_fetch_and_relative_views(self):
+        from ainews import fetchers, score
+        pub = "2026-10-02T06:00:00Z"
+
+        def fake(url, headers=None):
+            if "/channels" in url:
+                return {"items": [{"snippet": {"title": "Matt Wolfe"}, "statistics": {"subscriberCount": "1000"},
+                                   "contentDetails": {"relatedPlaylists": {"uploads": "UU1"}}}]}
+            if "/playlistItems" in url:
+                return {"items": [{"snippet": {"title": "Qwen 3.5 is wild", "publishedAt": pub,
+                                               "description": "AI model news", "resourceId": {"videoId": "v1"}}}]}
+            return {"items": [{"id": "v1", "statistics": {"viewCount": "500"}}]}
+        cfg = {"window_hours": 48 * 365}
+        with mock.patch.dict(os.environ, {"YOUTUBE_API_KEY": "k"}), mock.patch.object(fetchers, "get_json", fake):
+            vids = fetchers.fetch_youtube({"handles": ["@mreflow"]}, cfg)
+        self.assertEqual(vids[0].url, "https://www.youtube.com/watch?v=v1")
+        self.assertEqual(vids[0].source, "YouTube: Matt Wolfe")
+        self.assertEqual(score.engagement(vids[0]), 1500)  # 500 views / 1000 subs * 3000
+
 
 if __name__ == "__main__":
     unittest.main()
