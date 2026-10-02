@@ -9,7 +9,8 @@ if [ ! -f .env ]; then
   read -rsp "OpenRouter API key (LLM_API_KEY, Enter to skip): " LLM; echo
   read -rsp "YouTube Data API key (Enter to skip): " YT; echo
   umask 077
-  printf 'LLM_API_KEY=%s\nYOUTUBE_API_KEY=%s\n' "$LLM" "$YT" > .env
+  cp .env.example .env
+  sed -i "s|^LLM_API_KEY=.*|LLM_API_KEY=$LLM|; s|^YOUTUBE_API_KEY=.*|YOUTUBE_API_KEY=$YT|" .env
   echo "wrote $DIR/.env (mode 600)"
 fi
 chmod 600 .env
