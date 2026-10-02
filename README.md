@@ -17,13 +17,16 @@ Topics: `model-release | safety-policy | open-source | funding-business | infra-
 ## Deploy (Ubuntu VPS)
 ```bash
 sudo git clone -b ai-news https://github.com/partho5/latest-news-per-industry /opt/news-collector
-cd /opt/news-collector && cp .env.example .env   # fill in keys you have; all optional
-python3 -m ainews --dry-run                       # try it
-sudo cp deploy/ai-news.* /etc/systemd/system/
-sudo systemctl enable --now ai-news.timer         # daily 08:00 Asia/Dhaka
+cd /opt/news-collector
+sudo ./deploy/install.sh          # asks for your keys (hidden), writes .env (600), enables the daily timer
+python3 -m ainews --dry-run       # try it; check "llm_used" and "sources_status" in the output
 ```
-Keys (`.env`): `YOUTUBE_API_KEY` (YouTube Data API v3), `LLM_BASE_URL` / `LLM_MODEL` / `LLM_API_KEY`
-(any OpenAI-compatible endpoint), `GITHUB_TOKEN` (optional, higher rate limit). Missing keys just skip that step.
+Runs daily at 08:00 Asia/Dhaka (GMT+6). Logs: `journalctl -u ai-news`.
+
+Keys live only in `.env` on the VPS (git-ignored) — never commit them. `LLM_API_KEY` is an OpenRouter key; the default
+model is `meta-llama/llama-3.1-8b-instruct` (override with `LLM_MODEL` / `LLM_BASE_URL` for any OpenAI-compatible
+endpoint). `YOUTUBE_API_KEY` enables the YouTube channels; `GITHUB_TOKEN` is optional. A missing key just skips that step,
+and an LLM failure falls back to rule-based scoring.
 Edit `config.json` to add/remove feeds and YouTube channel handles.
 
 ## Tests

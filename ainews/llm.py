@@ -1,6 +1,5 @@
-"""Optional cheap-LLM pass over the shortlist. Any OpenAI-compatible endpoint works
-(DeepSeek, Gemini via OpenAI-compat, Groq, OpenRouter, ...). Configure via env:
-LLM_BASE_URL, LLM_MODEL, LLM_API_KEY."""
+"""Optional cheap-LLM pass over the shortlist. Defaults to OpenRouter + a very cheap model; any
+OpenAI-compatible endpoint works. Only LLM_API_KEY is required; override LLM_BASE_URL / LLM_MODEL to switch."""
 import json
 import os
 import re
@@ -18,14 +17,20 @@ Candidates:
 """
 
 
+DEFAULT_BASE_URL = "https://openrouter.ai/api/v1"
+DEFAULT_MODEL = "meta-llama/llama-3.1-8b-instruct"
+BATCH = 10  # small batches keep small models' JSON output reliable
+
+
 def configured():
-    return all(os.environ.get(k) for k in ("LLM_BASE_URL", "LLM_MODEL", "LLM_API_KEY"))
+    return bool(os.environ.get("LLM_API_KEY"))
 
 
 def _chat(content):
-    body = json.dumps({"model": os.environ["LLM_MODEL"], "temperature": 0,
+    body = json.dumps({"model": os.environ.get("LLM_MODEL") or DEFAULT_MODEL, "temperature": 0,
                        "messages": [{"role": "user", "content": content}]}).encode()
-    req = Request(os.environ["LLM_BASE_URL"].rstrip("/") + "/chat/completions", data=body, headers={
+    base = os.environ.get("LLM_BASE_URL") or DEFAULT_BASE_URL
+    req = Request(base.rstrip("/") + "/chat/completions", data=body, headers={
         "Content-Type": "application/json", "Authorization": "Bearer " + os.environ["LLM_API_KEY"]})
     with urlopen(req, timeout=120) as r:
         return json.loads(r.read())["choices"][0]["message"]["content"]
@@ -38,9 +43,19 @@ def parse_verdicts(raw):
 
 
 def review(stories):
-    lines = []
-    for i, s in enumerate(stories):
-        top = s.items[0]
-        srcs = ", ".join(sorted({it.source for it in s.items})[:5])
-        lines.append(f"[{i}] {top.title} | sources: {srcs} | {top.text[:200]}")
-    return parse_verdicts(_chat(PROMPT + "\n".join(lines)))
+    """Verdicts keyed by index into `stories`. Batches that fail are skipped (those stories keep their
+    rule-based score); raises only if every batch failed."""
+    verdicts, last_err = {}, None
+    for start in range(0, len(stories), BATCH):
+        lines = []
+        for i, s in enumerate(stories[start:start + BATCH], start):
+            top = s.items[0]
+            srcs = ", ".join(sorted({it.source for it in s.items})[:5])
+            lines.append(f"[{i}] {top.title} | sources: {srcs} | {top.text[:200]}")
+        try:
+            verdicts.update(parse_verdicts(_chat(PROMPT + "\n".join(lines))))
+        except Exception as e:
+            last_err = e
+    if not verdicts and last_err:
+        raise last_err
+    return verdicts

@@ -91,7 +91,7 @@ def run(cfg, items=None, now=None, dry_run=False):
                     s.topic = v["topic"]
                 s.score = 0.6 * s.score + 0.4 * 10 * float(v.get("impact", 5))
                 kept.append(s)
-            shortlist, llm_used = kept, True
+            shortlist, llm_used = kept, bool(verdicts)
             shortlist.sort(key=lambda s: s.score, reverse=True)
         except Exception as e:
             log.warning("LLM pass failed, falling back to rules only: %s", e)

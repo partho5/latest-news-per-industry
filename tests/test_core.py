@@ -85,6 +85,28 @@ class Tests(unittest.TestCase):
         self.assertFalse(out["llm_used"])
         self.assertTrue(out["items"])
 
+    def test_llm_batches_and_survives_partial_failure(self):
+        from ainews.models import Story
+        stories = [Story(items=[Item(f"t{i}", f"https://a.com/{i}", "S", "news", T)]) for i in range(25)]
+        calls = []
+
+        def chat(prompt):
+            calls.append(prompt)
+            if len(calls) == 2:
+                raise RuntimeError("bad batch")
+            ids = [int(x) for x in __import__("re").findall(r"^\[(\d+)\]", prompt, __import__("re").M)]
+            return json.dumps([{"id": i, "keep": True, "impact": 5} for i in ids])
+        with mock.patch.object(llm, "_chat", chat):
+            v = llm.review(stories)
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(sorted(v), list(range(10)) + list(range(20, 25)))
+
+    def test_llm_only_needs_api_key(self):
+        with mock.patch.dict(os.environ, {"LLM_API_KEY": "k"}, clear=True):
+            self.assertTrue(llm.configured())
+        with mock.patch.dict(os.environ, {}, clear=True):
+            self.assertFalse(llm.configured())
+
     def test_parse_verdicts_tolerates_prose(self):
         v = llm.parse_verdicts('Sure!\n```json\n[{"id": 0, "keep": true, "impact": 7}]\n```')
         self.assertEqual(v[0]["impact"], 7)
