@@ -1,84 +1,85 @@
 # latest-news-per-industry — `ai-news` branch
 
-Once a day on a VPS: collects AI-industry news from official feeds/APIs, keeps the 5–10 most significant stories,
-writes them to JSON, and sends them to Telegram — each with 1–2 related links found by a web search.
+## Goal
+Every day, deliver to me (on Telegram, and as JSON on the VPS) the **5–10 AI-industry stories that matter most** —
+the ones many credible people are genuinely talking about: a major model/product launch, an open-weights release
+that changes what's possible, a credible safety/policy warning, a big funding or regulatory move. For each story,
+also send 1–2 links to *other* outlets covering the same thing, so I can read a second source.
+Later, the same approach is reused per industry on its own branch (`fintech-news`, …); this branch is AI only.
 
-## How a story is chosen
-Items are clustered by event (same URL / near-identical title), then scored 0–100:
-cross-outlet coverage (30) + community velocity — HN / GitHub / Hugging Face / YouTube (30) + primary source (15)
-+ category weight (15) + freshness (10) − clickbait penalty. Anything published in the last 30 days is dropped
-(SQLite memory). A cheap LLM pass over the top ~30 removes quote-only/fluff items and writes one-line summaries.
-Then, per story, the LLM writes a search query, DuckDuckGo is searched, and the 1–2 most relevant results from
-*other* sites are attached. A failure in any optional step (LLM, search, Telegram) never stops the run.
+## Philosophy
+- **Signal over noise.** A story matters because of how widely and independently it is being discussed, not because
+  a famous person said something. A CEO/celebrity quote with no new fact is noise. A real launch, release, research
+  result, policy decision or credible warning is signal.
+- **Trustworthy and legitimate sources only.** Official feeds and APIs (RSS, Hacker News, GitHub, Hugging Face,
+  YouTube Data API, lab/company blogs). No scraping of sites that don't allow it. The one exception is the
+  DuckDuckGo related-links search, which is an unofficial placeholder meant to be swapped for an official search API.
+- **Never repeat yourself.** The same story must not be sent twice, within a day (merge duplicates across outlets)
+  or across days (remember what was already sent).
+- **Few and compact beats many.** 5–10 items a day, one short summary each, one link each.
+- **Cheap and boring to run.** One run per day, standard-library Python, a very cheap LLM (a fraction of a cent per day).
+- **Never break the whole run for an optional part.** If the LLM, the search, Telegram, or any single source fails,
+  log it and carry on; the JSON is always written. Fail loudly in the logs, softly in the output.
+- **Secrets stay out of git.** Keys live only in `.env` on the VPS (mode 600). Never paste keys or the Telegram
+  session string into chats, issues or commits. If one leaks, revoke it.
 
-## Output
-`data/daily/YYYY-MM-DD.json` and `data/daily/latest.json`:
-`{generated_at, window_hours, llm_used, sources_status, items:[{id,title,summary,url,topic,score,sources[],signals{},
-search_query,related[{title,url,snippet}],published_at,collected_at}]}`
-Topics: `model-release | safety-policy | open-source | funding-business | infra-chips | research | other`.
+## Steps (Ubuntu VPS, clone → running)
 
----
-
-## Deployment guide (Ubuntu VPS, from clone to running)
-
-### 0. Get your keys first
-| Key | Where | Needed for |
+### 1. Get your keys
+All optional; a missing key just skips that feature.
+| Key | Where to get it | Used for |
 |---|---|---|
-| `OPENROUTER_API_KEY` | openrouter.ai → Keys (add a few dollars of credit) | LLM filtering, summaries, search queries |
+| `OPENROUTER_API_KEY` | openrouter.ai → Keys (add a few dollars of credit) | filtering fluff, summaries, search queries |
 | `TELEGRAM_API_ID`, `TELEGRAM_API_HASH` | my.telegram.org → API development tools | Telegram digest |
-| `TELEGRAM_SESSION` | A Telethon **StringSession** generated with the *same* api_id/api_hash (`StringSession.save()` after logging in with your OTP) | Telegram digest |
-| `YOUTUBE_API_KEY` | Google Cloud Console → enable *YouTube Data API v3* → Credentials → API key | YouTube channels |
+| `TELEGRAM_SESSION` | Telethon StringSession made with the *same* api_id/api_hash | Telegram digest |
+| `YOUTUBE_API_KEY` | Google Cloud Console → enable YouTube Data API v3 → API key | AI-news YouTube channels |
 
-All are optional: a missing key just skips that step. **A StringSession grants full access to your Telegram account.**
-Never paste it into chats/issues/commits; if it leaks, revoke it in Telegram → Settings → Devices.
-
-### 1. Install system packages
+### 2. Install system packages
 ```bash
 sudo apt update && sudo apt install -y git python3 python3-venv
 ```
 
-### 2. Clone the `ai-news` branch
+### 3. Clone the branch
 ```bash
 sudo git clone -b ai-news https://github.com/partho5/latest-news-per-industry /opt/news-collector
 cd /opt/news-collector
 ```
 
-### 3. Run the installer
+### 4. Run the installer
 ```bash
 sudo ./deploy/install.sh
 ```
-It creates `.venv`, installs `telethon`, asks for the keys above (input hidden; press Enter to skip any), writes
-`.env` with mode 600, and installs + starts a systemd timer that runs daily at **08:00 Asia/Dhaka (GMT+6)**.
-Prefer manual setup? `cp .env.example .env`, edit it, then copy `deploy/ai-news.{service,timer}` to
-`/etc/systemd/system/`, and `sudo systemctl enable --now ai-news.timer`.
+It creates a virtualenv, installs dependencies, asks for the keys (hidden input; Enter skips), writes `.env`
+(mode 600), and enables a systemd timer that runs daily at **08:00 Asia/Dhaka (GMT+6)**.
 
-### 4. Verify
+### 5. Verify with a dry run
 ```bash
-sudo .venv/bin/python -m ainews --dry-run     # prints the JSON; sends nothing, writes nothing
+sudo .venv/bin/python -m ainews --dry-run
 ```
-Check in the output: `"llm_used": true`; `sources_status` shows a count (not `error: …`) for each source;
-each item has a `related` list. Then run for real (writes JSON, updates dedup memory, sends Telegram):
+Prints the JSON; sends nothing and writes nothing. Check that:
+- `"llm_used": true`
+- every entry in `sources_status` is a number, not `error: …`
+- each item has a `summary` and a `related` list
+
+### 6. Do a real run
 ```bash
-sudo systemctl start ai-news && journalctl -u ai-news -n 30 --no-pager
+sudo systemctl start ai-news
+journalctl -u ai-news -n 40 --no-pager
 ```
-You should see `wrote N items` and `telegram sent=True`.
+Expect `wrote N items` and `telegram sent=True`, and the messages in Telegram (Saved Messages by default,
+or `TELEGRAM_CHAT`). Output is in `data/daily/`. With no news worth sending, nothing is sent.
 
-### 5. Operate
+### 7. Day-to-day
 ```bash
-systemctl list-timers ai-news.timer      # next run
-journalctl -u ai-news -f                 # logs
-cd /opt/news-collector && sudo git pull && sudo .venv/bin/pip install -r requirements.txt   # update
+systemctl list-timers ai-news.timer                     # next run
+journalctl -u ai-news -f                                # logs
+git pull && .venv/bin/pip install -r requirements.txt   # update to latest
 ```
 
-### Configuration (`config.json`)
-Feeds and YouTube channel handles (`sources`), `max_items`, `window_hours`, `min_score`, `dedup_days`,
-`search` (`enabled`, `per_item`, `delay_seconds`) and `telegram.enabled`.
-Telegram messages go to `TELEGRAM_CHAT` (default `me` = Saved Messages; or a chat id / `@username`). No news → no message.
-
-### Notes
-- Related-link search uses DuckDuckGo's unofficial HTML endpoint (`ainews/search.py`). It can be rate-limited or change
-  without notice; if it breaks, only the `related` links disappear. Swap `search_ddg` for an official search API when needed.
-- Only `OPENROUTER_API_KEY` is needed for the LLM step; override `OPENROUTER_MODEL` / `OPENROUTER_BASE_URL` for other models.
-
-## Tests
-`python3 -m unittest discover -s tests` (Telegram and network are mocked)
+## If something is wrong (steps for whoever debugging on the VPS)
+1. Read the logs: `journalctl -u ai-news -n 100 --no-pager`. Each optional part logs a warning when it fails.
+2. Run `sudo .venv/bin/python -m ainews --dry-run` and read `sources_status`, `llm_used`, and the items.
+3. Fix the smallest thing that explains the symptom, keeping the philosophy above (never let an optional part break the run).
+4. Run the tests: `.venv/bin/python -m unittest discover -s tests` (network and Telegram are mocked).
+5. Re-run the dry run, then a real run; confirm the symptom is gone.
+6. Commit with a clear message and push to `ai-news`. Never commit `.env` or any key.
