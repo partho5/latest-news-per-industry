@@ -1,0 +1,25 @@
+{
+  "window_hours": 36,
+  "max_items": 10,
+  "min_score": 15,
+  "shortlist_size": 30,
+  "dedup_days": 30,
+  "data_dir": "data",
+  "sources": [
+    {"kind": "rss", "name": "OpenAI", "type": "primary", "url": "https://openai.com/news/rss.xml"},
+    {"kind": "rss", "name": "Google DeepMind", "type": "primary", "url": "https://deepmind.google/blog/rss.xml"},
+    {"kind": "rss", "name": "Google AI Blog", "type": "primary", "url": "https://blog.google/technology/ai/rss/"},
+    {"kind": "rss", "name": "Hugging Face Blog", "type": "primary", "url": "https://huggingface.co/blog/feed.xml"},
+    {"kind": "rss", "name": "NVIDIA Blog", "type": "primary", "url": "https://blogs.nvidia.com/feed/"},
+    {"kind": "rss", "name": "TechCrunch", "type": "news", "url": "https://techcrunch.com/category/artificial-intelligence/feed/"},
+    {"kind": "rss", "name": "The Verge", "type": "news", "url": "https://www.theverge.com/rss/ai-artificial-intelligence/index.xml"},
+    {"kind": "rss", "name": "Ars Technica", "type": "news", "url": "https://arstechnica.com/ai/feed/"},
+    {"kind": "rss", "name": "MIT Technology Review", "type": "news", "url": "https://www.technologyreview.com/topic/artificial-intelligence/feed"},
+    {"kind": "rss", "name": "VentureBeat", "type": "news", "url": "https://venturebeat.com/category/ai/feed/"},
+    {"kind": "rss", "name": "WIRED", "type": "news", "url": "https://www.wired.com/feed/tag/ai/latest/rss"},
+    {"kind": "hn", "name": "Hacker News", "queries": ["AI", "LLM", "OpenAI", "Anthropic", "Claude", "Gemini", "DeepSeek", "Qwen", "Llama"], "min_points": 50},
+    {"kind": "github", "name": "GitHub", "queries": ["topic:llm", "topic:ai-agents", "topic:generative-ai"], "min_stars": 300, "created_within_days": 14},
+    {"kind": "huggingface", "name": "Hugging Face Hub", "limit": 25, "created_within_days": 10},
+    {"kind": "youtube", "name": "YouTube", "handles": ["@aiexplained-official", "@TwoMinutePapers", "@MatthewBerman", "@WesRoth", "@TheAIGRID"]}
+  ]
+}

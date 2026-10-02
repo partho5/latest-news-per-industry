@@ -1,0 +1,7 @@
+[Unit]
+Description=ai-news daily collector
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/news-collector
+ExecStart=/usr/bin/python3 -m ainews

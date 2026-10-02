@@ -1,0 +1,10 @@
+[Unit]
+Description=Run ai-news once a day
+
+[Timer]
+# 08:00 Bangladesh time (GMT+6)
+OnCalendar=*-*-* 08:00:00 Asia/Dhaka
+Persistent=true
+
+[Install]
+WantedBy=timers.target
