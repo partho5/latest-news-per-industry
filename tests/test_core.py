@@ -102,7 +102,7 @@ class Tests(unittest.TestCase):
         self.assertEqual(sorted(v), list(range(10)) + list(range(20, 25)))
 
     def test_llm_only_needs_api_key(self):
-        with mock.patch.dict(os.environ, {"LLM_API_KEY": "k"}, clear=True):
+        with mock.patch.dict(os.environ, {"OPENROUTER_API_KEY": "k"}, clear=True):
             self.assertTrue(llm.configured())
         with mock.patch.dict(os.environ, {}, clear=True):
             self.assertFalse(llm.configured())

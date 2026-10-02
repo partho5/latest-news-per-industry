@@ -23,8 +23,8 @@ python3 -m ainews --dry-run       # try it; check "llm_used" and "sources_status
 ```
 Runs daily at 08:00 Asia/Dhaka (GMT+6). Logs: `journalctl -u ai-news`.
 
-Keys live only in `.env` on the VPS (git-ignored) — never commit them. `LLM_API_KEY` is an OpenRouter key; the default
-model is `meta-llama/llama-3.1-8b-instruct` (override with `LLM_MODEL` / `LLM_BASE_URL` for any OpenAI-compatible
+Keys live only in `.env` on the VPS (git-ignored) — never commit them. `OPENROUTER_API_KEY` is an OpenRouter key; the default
+model is `meta-llama/llama-3.1-8b-instruct` (override with `OPENROUTER_MODEL` / `OPENROUTER_BASE_URL` for any OpenAI-compatible
 endpoint). `YOUTUBE_API_KEY` enables the YouTube channels; `GITHUB_TOKEN` is optional. A missing key just skips that step,
 and an LLM failure falls back to rule-based scoring.
 Edit `config.json` to add/remove feeds and YouTube channel handles.

@@ -1,5 +1,5 @@
-"""Optional cheap-LLM pass over the shortlist. Defaults to OpenRouter + a very cheap model; any
-OpenAI-compatible endpoint works. Only LLM_API_KEY is required; override LLM_BASE_URL / LLM_MODEL to switch."""
+"""Optional cheap-LLM pass over the shortlist. Uses OpenRouter with a very cheap model by default; any
+OpenAI-compatible endpoint works. Only OPENROUTER_API_KEY is required; override OPENROUTER_BASE_URL / OPENROUTER_MODEL to switch."""
 import json
 import os
 import re
@@ -23,15 +23,15 @@ BATCH = 10  # small batches keep small models' JSON output reliable
 
 
 def configured():
-    return bool(os.environ.get("LLM_API_KEY"))
+    return bool(os.environ.get("OPENROUTER_API_KEY"))
 
 
 def _chat(content):
-    body = json.dumps({"model": os.environ.get("LLM_MODEL") or DEFAULT_MODEL, "temperature": 0,
+    body = json.dumps({"model": os.environ.get("OPENROUTER_MODEL") or DEFAULT_MODEL, "temperature": 0,
                        "messages": [{"role": "user", "content": content}]}).encode()
-    base = os.environ.get("LLM_BASE_URL") or DEFAULT_BASE_URL
+    base = os.environ.get("OPENROUTER_BASE_URL") or DEFAULT_BASE_URL
     req = Request(base.rstrip("/") + "/chat/completions", data=body, headers={
-        "Content-Type": "application/json", "Authorization": "Bearer " + os.environ["LLM_API_KEY"]})
+        "Content-Type": "application/json", "Authorization": "Bearer " + os.environ["OPENROUTER_API_KEY"]})
     with urlopen(req, timeout=120) as r:
         return json.loads(r.read())["choices"][0]["message"]["content"]
 
